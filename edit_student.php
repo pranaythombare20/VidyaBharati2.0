@@ -1,12 +1,14 @@
 <?php
 session_start();
-include 'db_connect.php';
+include 'db_connect.php'; // Ensure $pdo is initialized in db_connect.php
 
 // Ensure only admins can access this page
 if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
     header("Location: admin_dashboard.php");
     exit();
 }
+$pdo = new PDO("mysql:host=localhost;dbname=student_tracking_db", "root", "");  // Update with your database credentials
+$pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
 $fields = [
     'roll_number' => 'Roll Number', 'name' => 'Name', 'email' => 'Email', 'phone' => 'Phone', 'dob' => 'DOB',
@@ -22,10 +24,11 @@ if (!isset($_GET['id'])) {
 }
 $student_id = $_GET['id'];
 
-// Fetch student record
-$query = "SELECT * FROM students WHERE id = '$student_id'";
-$result = mysqli_query($conn, $query);
-$student = mysqli_fetch_assoc($result);
+// Fetch student record using PDO
+$query = "SELECT * FROM students WHERE id = :id";
+$stmt = $pdo->prepare($query);
+$stmt->execute([':id' => $student_id]);
+$student = $stmt->fetch(PDO::FETCH_ASSOC);
 
 if (!$student) {
     echo "<p class='text-danger text-center'>Student not found!</p>";
@@ -36,21 +39,38 @@ if (!$student) {
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $data = [];
     foreach ($fields as $key => $label) {
-        $data[$key] = mysqli_real_escape_string($conn, $_POST[$key]);
+        $data[$key] = $_POST[$key];
     }
+
+    // Update query using PDO
     $update_query = "UPDATE students SET 
-                        roll_number='{$data['roll_number']}', name='{$data['name']}', email='{$data['email']}',
-                        phone='{$data['phone']}', dob='{$data['dob']}', address='{$data['address']}',
-                        course='{$data['course']}', year='{$data['year']}', guardian_name='{$data['guardian_name']}',
-                        guardian_contact='{$data['guardian_contact']}', admission_date='{$data['admission_date']}',
-                        gender='{$data['gender']}' WHERE id='$student_id'";
-    
-    if (mysqli_query($conn, $update_query)) {
+                        roll_number = :roll_number, name = :name, email = :email, phone = :phone, dob = :dob, 
+                        address = :address, course = :course, year = :year, guardian_name = :guardian_name, 
+                        guardian_contact = :guardian_contact, admission_date = :admission_date, gender = :gender 
+                     WHERE id = :id";
+    $stmt = $pdo->prepare($update_query);
+    $params = [
+        ':roll_number' => $data['roll_number'],
+        ':name' => $data['name'],
+        ':email' => $data['email'],
+        ':phone' => $data['phone'],
+        ':dob' => $data['dob'],
+        ':address' => $data['address'],
+        ':course' => $data['course'],
+        ':year' => $data['year'],
+        ':guardian_name' => $data['guardian_name'],
+        ':guardian_contact' => $data['guardian_contact'],
+        ':admission_date' => $data['admission_date'],
+        ':gender' => $data['gender'],
+        ':id' => $student_id
+    ];
+
+    if ($stmt->execute($params)) {
         $_SESSION['message'] = "Student record updated successfully!";
         header("Location: admin_dashboard.php");
         exit();
     } else {
-        echo "<p class='text-danger text-center'>Error: " . mysqli_error($conn) . "</p>";
+        echo "<p class='text-danger text-center'>Error updating record.</p>";
     }
 }
 ?>

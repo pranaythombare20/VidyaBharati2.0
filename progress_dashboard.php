@@ -1,11 +1,16 @@
+
+
 <?php include 'header.php'; ?>
 <?php
-include 'db_connect.php';
+include 'db_connect.php'; // Ensure $pdo is initialized in db_connect.php
 
 // Ensure user is logged in
 if (!isset($_SESSION['user_id'])) {
     die("❌ Unauthorized access. Please log in.");
 }
+
+$pdo = new PDO("mysql:host=localhost;dbname=student_tracking_db", "root", "");  //      // Update with your database credentials
+$pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 $error = "";
 // Get logged-in user details
 $user_id = $_SESSION['user_id'];
@@ -18,34 +23,21 @@ $sql = "SELECT u.user_id, u.name, sm.subject, sm.marks_obtained, sm.total_marks,
 
 // Filter for students only
 if ($user_role == 'student') {
-    $sql .= " WHERE u.user_id = ?";
+    $sql .= " WHERE u.user_id = :user_id";
 }
 
-// Check if the query prepares correctly
-if (!$stmt = $conn->prepare($sql)) {
-    die("❌ Query preparation failed: " . $conn->error);
-}
+$stmt = $pdo->prepare($sql);
 
 // Bind parameter only for students
 if ($user_role == 'student') {
-    $stmt->bind_param("s", $user_id);
-}
-
-$stmt->execute();
-$result = $stmt->get_result();
-
-// Check if any records exist
-if (!$result) {
-    die("❌ Query execution failed: " . $conn->error);
-}
-
-if ($result->num_rows == 0) {
-    $error= "<br><p class='alert alert-danger'><br><b>❌ No student records found.<br> <br></b></p>";
+    $stmt->execute([':user_id' => $user_id]);
+} else {
+    $stmt->execute();
 }
 
 // Fetch results
 $students = [];
-while ($row = $result->fetch_assoc()) {
+while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
     $students[$row['user_id']]['name'] = $row['name'];
     $students[$row['user_id']]['marks'][] = [
         'subject' => $row['subject'],
@@ -56,6 +48,10 @@ while ($row = $result->fetch_assoc()) {
     ];
 }
 
+// Check if any records exist
+if (empty($students)) {
+    $error = "<br><p class='alert alert-danger'><br><b>❌ No student records found.<br> <br></b></p>";
+}
 ?>
 
 <!DOCTYPE html>
@@ -279,44 +275,41 @@ body {
 <body>
 
 <div class="container" style="background:white; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);"> 
-<div class="container" >
-<div class="container" style="background:white; padding:30px; color:black; text-transform: Uppercase; ">
-    <?php foreach ($students as $student_id => $student): ?>
-        <h2><center><b><?php echo $student['name']; ?></h2></b></center>     
-    </div>
-    <div class="container" style="background:white; padding:40px;">
-        <table class="table table-bordered">
-        
-            <tr>
-           
-                <th style="color: white;">Subject</th>
-                <th style="color: white;">Marks Obtained</th>
-                <th style="color: white;">Total Marks</th>
-                <th style="color: white;">Exam Type</th>
-                <th style="color: white;">Semester</th>
-            </tr>
-            <?php foreach ($student['marks'] as $mark): ?>
-                <tr>
-                    <td style="color:white;"><?php echo $mark['subject']; ?></td>
-                    <td style="color:white;"><?php echo $mark['marks_obtained']; ?></td>
-                    <td style="color:white;"><?php echo $mark['total_marks']; ?></td>
-                    <td style="color:white;"><?php echo $mark['exam_type']; ?></td>
-                    <td style="color:white;"><?php echo $mark['semester']; ?></td>
-                </tr>
-            <?php endforeach; ?>
-        </table>
+    <div class="container">
+        <div class="container" style="background:white; padding:30px; color:black; text-transform: Uppercase;">
+            <?php foreach ($students as $student_id => $student): ?>
+                <h2><center><b><?php echo htmlspecialchars($student['name']); ?></h2></b></center>     
             </div>
-    <?php endforeach; ?>
+            <div class="container" style="background:white; padding:40px;">
+                <table class="table table-bordered">
+                    <tr>
+                        <th style="color: white;">Subject</th>
+                        <th style="color: white;">Marks Obtained</th>
+                        <th style="color: white;">Total Marks</th>
+                        <th style="color: white;">Exam Type</th>
+                        <th style="color: white;">Semester</th>
+                    </tr>
+                    <?php foreach ($student['marks'] as $mark): ?>
+                        <tr>
+                            <td style="color:white;"><?php echo htmlspecialchars($mark['subject']); ?></td>
+                            <td style="color:white;"><?php echo htmlspecialchars($mark['marks_obtained']); ?></td>
+                            <td style="color:white;"><?php echo htmlspecialchars($mark['total_marks']); ?></td>
+                            <td style="color:white;"><?php echo htmlspecialchars($mark['exam_type']); ?></td>
+                            <td style="color:white;"><?php echo htmlspecialchars($mark['semester']); ?></td>
+                        </tr>
+                    <?php endforeach; ?>
+                </table>
+            </div>
+            <?php endforeach; ?>
             <div class="container" style="background:white; padding-bottom:10px;">
-           <big><center><h3 style="color:green;"><b>Student Progress Data</h3></b></center></big>
+                <big><center><h3 style="color:green;"><b>Student Progress Data</h3></b></center></big>
                 <?php 
                 echo $error; // Display error message if no records found
                 ?>
             </div>
-           
-</div>
+        </div>
+    </div>
 </div>
 <?php include 'footer.php'; ?>
 </body>
 </html>
-

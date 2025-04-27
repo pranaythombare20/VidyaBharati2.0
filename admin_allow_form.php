@@ -1,8 +1,10 @@
-<?php include 'header.php';?>
+<?php include 'header.php'; ?>
 <?php
 
-include 'db_connect.php';
+include 'db_connect.php'; // Ensure $pdo is initialized in db_connect.php
 
+$pdo = new PDO("mysql:host=localhost;dbname=student_tracking_db", "root", "");  //      // Update with your database credentials
+$pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 // Check admin login
 if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
     header("Location: login.php");
@@ -12,8 +14,11 @@ if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
 // Delete user
 if (isset($_POST['delete_user'])) {
     $user_id = $_POST['user_id'];
-    $delete_query = "DELETE FROM users WHERE user_id='$user_id'";
-    if (mysqli_query($conn, $delete_query)) {
+
+    $delete_query = "DELETE FROM users WHERE user_id = :user_id";
+    $stmt_delete = $pdo->prepare($delete_query);
+
+    if ($stmt_delete->execute([':user_id' => $user_id])) {
         echo "<script>alert('User deleted successfully!'); window.location='admin_allow_form.php';</script>";
     } else {
         echo "<script>alert('Error deleting user.'); window.location='admin_allow_form.php';</script>";
@@ -22,7 +27,8 @@ if (isset($_POST['delete_user'])) {
 
 // Fetch all users
 $users_query = "SELECT * FROM users";
-$result = mysqli_query($conn, $users_query);
+$stmt_users = $pdo->query($users_query);
+$users = $stmt_users->fetchAll(PDO::FETCH_ASSOC);
 ?>
 
 <!DOCTYPE html>
@@ -49,7 +55,7 @@ $result = mysqli_query($conn, $users_query);
 
         header {
             background: linear-gradient(135deg, #1e3c72, #2a5298);
-            color:white;
+            color: white;
             padding: 1rem 2rem;
             display: flex;
             justify-content: space-between;
@@ -163,19 +169,19 @@ $result = mysqli_query($conn, $users_query);
         <th>Role</th>
         <th>Action</th>
     </tr>
-    <?php while ($row = mysqli_fetch_assoc($result)) { ?>
+    <?php foreach ($users as $row): ?>
     <tr>
         <td><?= htmlspecialchars($row['user_id']) ?></td>
         <td><?= htmlspecialchars($row['name']) ?></td>
         <td><?= htmlspecialchars($row['role']) ?></td>
         <td>
             <form method="POST" onsubmit="return confirm('Are you sure you want to delete this user?');">
-                <input type="hidden" name="user_id" value="<?= $row['user_id'] ?>">
+                <input type="hidden" name="user_id" value="<?= htmlspecialchars($row['user_id']) ?>">
                 <button type="submit" name="delete_user">Delete</button>
             </form>
         </td>
     </tr>
-    <?php } ?>
+    <?php endforeach; ?>
 </table>
 
 </div>

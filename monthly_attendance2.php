@@ -1,7 +1,9 @@
 <?php include 'header.php'; ?>
 <?php
-include 'db_connect.php';
+include 'db_connect.php'; // Ensure $pdo is initialized in db_connect.php
 
+$pdo = new PDO("mysql:host=localhost;dbname=student_tracking_db", "root", "");  // Update with your database credentials
+$pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 $student_id = ""; // Replace with the specific student_id you want to fetch
 $attendance_records = [];
 $defaulters = [];
@@ -11,26 +13,20 @@ $total_days = 0;
 if (isset($_POST['delete_attendance'])) {
     $attendance_id = $_POST['attendance_id'];
 
-    $delete_query = "DELETE FROM attendance WHERE id = ?";
-    $stmt_delete = $conn->prepare($delete_query);
-    $stmt_delete->bind_param("i", $attendance_id);
+    $delete_query = "DELETE FROM attendance WHERE id = :id";
+    $stmt_delete = $pdo->prepare($delete_query);
 
-    if ($stmt_delete->execute()) {
+    if ($stmt_delete->execute([':id' => $attendance_id])) {
         echo "<script>alert('Attendance record deleted successfully.');</script>";
     } else {
-        echo "<script>alert('Error deleting attendance record: " . $conn->error . "');</script>";
+        echo "<script>alert('Error deleting attendance record.');</script>";
     }
 }
 
 // Fetch total number of working days (distinct dates in the attendance table)
 $total_days_query = "SELECT COUNT(DISTINCT date) AS total_days FROM attendance";
-$result_days = $conn->query($total_days_query);
-if ($result_days) {
-    $row_days = $result_days->fetch_assoc();
-    $total_days = $row_days['total_days']; // Total working days
-} else {
-    die("Error fetching total days: " . $conn->error);
-}
+$stmt_days = $pdo->query($total_days_query);
+$total_days = $stmt_days->fetch(PDO::FETCH_ASSOC)['total_days'] ?? 0;
 
 // Fetch attendance records for a specific student
 if (isset($_GET['student_id'])) {
@@ -41,19 +37,11 @@ if (isset($_GET['student_id'])) {
         $sql_attendance = "
             SELECT date, period_1, period_2, period_3, period_4, period_5, period_6, period_7, period_8
             FROM attendance
-            WHERE student_id = ?";
+            WHERE student_id = :student_id";
         
-        $stmt = $conn->prepare($sql_attendance);
-        if (!$stmt) {
-            die("Error preparing statement: " . $conn->error);
-        }
-        $stmt->bind_param("s", $student_id); // Use "s" for string parameters
-        $stmt->execute();
-        $result_attendance = $stmt->get_result();
-
-        while ($row = $result_attendance->fetch_assoc()) {
-            $attendance_records[] = $row;
-        }
+        $stmt = $pdo->prepare($sql_attendance);
+        $stmt->execute([':student_id' => $student_id]);
+        $attendance_records = $stmt->fetchAll(PDO::FETCH_ASSOC);
     } else {
         echo "<script>alert('Student ID is required.');</script>";
     }
@@ -75,22 +63,16 @@ $sql_defaulters = "
     LEFT JOIN attendance a ON s.roll_number = a.student_id
     GROUP BY s.roll_number, s.name";
 
-$result_defaulters = $conn->query($sql_defaulters);
-if (!$result_defaulters) {
-    die("Error fetching defaulter list: " . $conn->error);
-}
+$stmt_defaulters = $pdo->query($sql_defaulters);
+while ($row = $stmt_defaulters->fetch(PDO::FETCH_ASSOC)) {
+    $total_periods_possible = $total_days * 8; // 8 periods per day
 
-if ($result_defaulters) {
-    while ($row = $result_defaulters->fetch_assoc()) {
-        $total_periods_possible = $total_days * 8; // 8 periods per day
+    if ($total_periods_possible > 0) {
+        $attendance_percentage = ($row['total_present_periods'] / $total_periods_possible) * 100;
 
-        if ($total_periods_possible > 0) {
-            $attendance_percentage = ($row['total_present_periods'] / $total_periods_possible) * 100;
-
-            if ($attendance_percentage < 75) {
-                $row['attendance_percentage'] = round($attendance_percentage, 2);
-                $defaulters[] = $row;
-            }
+        if ($attendance_percentage < 75) {
+            $row['attendance_percentage'] = round($attendance_percentage, 2);
+            $defaulters[] = $row;
         }
     }
 }
@@ -103,12 +85,8 @@ $sql_all_attendance = "
     LEFT JOIN students s ON a.student_id = s.roll_number
     ORDER BY a.date, s.name";
 
-$result_all_attendance = $conn->query($sql_all_attendance);
-if ($result_all_attendance) {
-    while ($row = $result_all_attendance->fetch_assoc()) {
-        $all_attendance_records[] = $row;
-    }
-}
+$stmt_all_attendance = $pdo->query($sql_all_attendance);
+$all_attendance_records = $stmt_all_attendance->fetchAll(PDO::FETCH_ASSOC);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -143,7 +121,7 @@ if ($result_all_attendance) {
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
         }
 
-        input,th, td {
+        input, th, td {
             padding: 12px 15px;
             text-align: center;
             border: 1px solid #ddd;
@@ -180,7 +158,6 @@ if ($result_all_attendance) {
     </style>
 </head>
 <body>
-        <br>
     <h2>Attendance Records for Student ID: <?php echo htmlspecialchars($student_id); ?></h2>
     <center>
     <form method="GET" action="">
@@ -219,9 +196,7 @@ if ($result_all_attendance) {
     <?php else: ?>
         <p>No attendance records found for this student.</p>
     <?php endif; ?>
-
     </center>
-
 
     <h2>Defaulter List (Attendance Below 75%)</h2>
 
@@ -287,7 +262,6 @@ if ($result_all_attendance) {
             <tr><td colspan="12">No attendance records found.</td></tr>
         <?php endif; ?>
     </table>
-
 </body>
 </html>
 <?php include 'footer.php'; ?>

@@ -1,6 +1,6 @@
 <?php include 'header.php'; ?>
 <?php
-include 'db_connect.php';
+include 'db_connect.php'; // Ensure $pdo is initialized in db_connect.php
 
 // Redirect if not logged in
 if (!isset($_SESSION['role'])) {
@@ -18,30 +18,59 @@ $fields = [
 $role = $_SESSION['role'];
 $user_id = $_SESSION['user_id'];
 
-// Fetch student record
-$query = "SELECT * FROM students WHERE id = '$user_id'";
-$result = mysqli_query($conn, $query);
-$record_exists = ($result && mysqli_num_rows($result) > 0);
-$row = $record_exists ? mysqli_fetch_assoc($result) : null;
+// Fetch student record using PDO
+$pdo = new PDO("mysql:host=localhost;dbname=student_tracking_db", "root", "");
+$pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+$stmt = $pdo->prepare("SELECT * FROM students WHERE id = :id");
+$stmt->execute(['id' => $user_id]);
+$row = $stmt->fetch(PDO::FETCH_ASSOC);
+$record_exists = $row ? true : false;
 
 // Handle form submission (only if record doesn't exist)
 if ($_SERVER["REQUEST_METHOD"] == "POST" && !$record_exists) {
     $data = [];
     foreach ($fields as $key => $label) {
-        $data[$key] = mysqli_real_escape_string($conn, $_POST[$key]);
+        $data[$key] = $_POST[$key];
     }
-    $query = "INSERT INTO students (id, roll_number, name, email, phone, dob, address, course, year, guardian_name, guardian_contact, admission_date, gender)
-              VALUES ('$user_id', '{$data['roll_number']}', '{$data['name']}', '{$data['email']}', '{$data['phone']}', '{$data['dob']}', '{$data['address']}', '{$data['course']}',
-                      '{$data['year']}', '{$data['guardian_name']}', '{$data['guardian_contact']}', '{$data['admission_date']}', '{$data['gender']}')";
-    if (mysqli_query($conn, $query)) {
+
+    // Prepare insert query
+    $query = "INSERT INTO students 
+        (id, roll_number, name, email, phone, dob, address, course, year, guardian_name, guardian_contact, admission_date, gender)
+        VALUES
+        (:id, :roll_number, :name, :email, :phone, :dob, :address, :course, :year, :guardian_name, :guardian_contact, :admission_date, :gender)";
+
+    $stmt = $pdo->prepare($query);
+    $params = [
+        ':id' => $user_id,
+        ':roll_number' => $data['roll_number'],
+        ':name' => $data['name'],
+        ':email' => $data['email'],
+        ':phone' => $data['phone'],
+        ':dob' => $data['dob'],
+        ':address' => $data['address'],
+        ':course' => $data['course'],
+        ':year' => $data['year'],
+        ':guardian_name' => $data['guardian_name'],
+        ':guardian_contact' => $data['guardian_contact'],
+        ':admission_date' => $data['admission_date'],
+        ':gender' => $data['gender']
+    ];
+
+    if ($stmt->execute($params)) {
         $_SESSION['message'] = "Record submitted successfully!";
         header("Location: " . $_SERVER['PHP_SELF']);
         exit();
     } else {
-        echo "<p class='text-danger text-center'>Error: " . mysqli_error($conn) . "</p>";
+        echo "<p class='text-danger text-center'>Error: Unable to save record.</p>";
     }
 }
-$role=$_SESSION['role']; // Get the role from session
+
+// Fetch all student records for admin/teacher
+$all_students = [];
+if ($role == 'teacher' || $role == 'admin') {
+    $stmt = $pdo->query("SELECT * FROM students");
+    $all_students = $stmt->fetchAll(PDO::FETCH_ASSOC);
+}
 ?>
 
 <!DOCTYPE html>
@@ -234,25 +263,25 @@ $role=$_SESSION['role']; // Get the role from session
         <?php if ($role == 'student'): ?>
             <?php if ($record_exists): ?>
                 <div class="container">
-                <h3><b><big>Your Submitted Details</big></b></h3>
-            </div>
+                    <h3><b><big>Your Submitted Details</big></b></h3>
+                </div>
                 <hr>
                 <div class="container">
-                <table class="table table-bordered">
-                    <?php foreach ($fields as $key => $label): ?>
-                        <tr>
-                            <th style="color:white;"><?= $label ?></th>
-                            <td style="color:black;"><?= htmlspecialchars($row[$key]) ?></td>
-                        </tr>
-                    <?php endforeach; ?>
-                </table>
-                    </div>
+                    <table class="table table-bordered">
+                        <?php foreach ($fields as $key => $label): ?>
+                            <tr>
+                                <th style="color:white;"><?= $label ?></th>
+                                <td style="color:black;"><?= htmlspecialchars($row[$key]) ?></td>
+                            </tr>
+                        <?php endforeach; ?>
+                    </table>
+                </div>
                 <p class="text-warning">You cannot edit your details after submission.</p>
             <?php else: ?>
                 <div class="container" style="width:90%;">
-               <big><b><p class="text-danger">No record found. Please enter your details below.</p></b></big>
-            </div>
-            <hr>
+                    <big><b><p class="text-danger">No record found. Please enter your details below.</p></b></big>
+                </div>
+                <hr>
                 <form method="POST" class="row g-3">
                     <?php foreach ($fields as $key => $label): ?>
                         <div class="col-md-6">
@@ -265,72 +294,63 @@ $role=$_SESSION['role']; // Get the role from session
                     </div>
                 </form>
             <?php endif; ?>
-           
         <?php endif; ?>
-        
-       
-        
-                  
+
         <?php if ($role == 'teacher' || $role == 'admin'): ?>
             <div class="container" style="width:fit-content;">
-            <h3 class="text-center mt-4">All Student Records</h3>
+                <h3 class="text-center mt-4">All Student Records</h3>
             </div>
             <hr>
             <div class="container" style="width:fit-content;">
-            <table class="table table-bordered">
-                <tr>
-                    <th>ID</th>
-                    <th>Roll Number</th>
-                    <th>Name</th>
-                    <th>Email</th>
-                    <th>Phone</th>
-                    <th>DOB</th>
-                    <th>Gender</th>
-                    <th>Address</th>
-                    <th>Course</th>
-                    <th>Year</th>
-                    <th>Guardian</th>
-                    <th>Guardian Contact</th>
-                    <th>Admission Date</th>
-                    <?php if ($role == 'admin') echo "<th>Actions</th>"; ?>
-                </tr>
-                <?php
-                $query = "SELECT * FROM students";
-                $result = mysqli_query($conn, $query);
-                while ($row = mysqli_fetch_assoc($result)):
-                ?>
-                <tr>
-                    <td><?= $row['id'] ?></td>
-                    <td><?= $row['roll_number'] ?></td>
-                    <td><?= $row['name'] ?></td>
-                    <td><?= $row['email'] ?></td>
-                    <td><?= $row['phone'] ?></td>
-                    <td><?= $row['dob'] ?></td>
-                    <td><?= $row['gender'] ?></td>
-                    <td><?= $row['address'] ?></td>
-                    <td><?= $row['course'] ?></td>
-                    <td><?= $row['year'] ?></td>
-                    <td><?= $row['guardian_name'] ?></td>
-                    <td><?= $row['guardian_contact'] ?></td>
-                    <td><?= $row['admission_date'] ?></td>
-                    <?php if ($role == 'admin'): ?>
-                        <td>
-                            <a href="edit_student.php?id=<?= $row['id'] ?>" class="btn btn-custom">Edit</a> |
-                            <a href="delete_student.php?id=<?= $row['id'] ?>" onclick="return confirm('Are you sure?')" class="btn btn-danger">Delete</a>
-                        </td>
-                    <?php endif; ?>
-                </tr>
-                <?php endwhile; ?>
-            </table>
-        </div>
-        
+                <table class="table table-bordered">
+                    <tr>
+                        <th>ID</th>
+                        <th>Roll Number</th>
+                        <th>Name</th>
+                        <th>Email</th>
+                        <th>Phone</th>
+                        <th>DOB</th>
+                        <th>Gender</th>
+                        <th>Address</th>
+                        <th>Course</th>
+                        <th>Year</th>
+                        <th>Guardian</th>
+                        <th>Guardian Contact</th>
+                        <th>Admission Date</th>
+                        <?php if ($role == 'admin') echo "<th>Actions</th>"; ?>
+                    </tr>
+                    <?php foreach ($all_students as $student): ?>
+                        <tr>
+                            <td><?= $student['id'] ?></td>
+                            <td><?= $student['roll_number'] ?></td>
+                            <td><?= $student['name'] ?></td>
+                            <td><?= $student['email'] ?></td>
+                            <td><?= $student['phone'] ?></td>
+                            <td><?= $student['dob'] ?></td>
+                            <td><?= $student['gender'] ?></td>
+                            <td><?= $student['address'] ?></td>
+                            <td><?= $student['course'] ?></td>
+                            <td><?= $student['year'] ?></td>
+                            <td><?= $student['guardian_name'] ?></td>
+                            <td><?= $student['guardian_contact'] ?></td>
+                            <td><?= $student['admission_date'] ?></td>
+                            <?php if ($role == 'admin'): ?>
+                                <td>
+                                    <a href="edit_student.php?id=<?= $student['id'] ?>" class="btn btn-custom">Edit</a> |
+                                    <a href="delete_student.php?id=<?= $student['id'] ?>" onclick="return confirm('Are you sure?')" class="btn btn-danger">Delete</a>
+                                </td>
+                            <?php endif; ?>
+                        </tr>
+                    <?php endforeach; ?>
+                </table>
+            </div>
         <?php endif; ?>
-       
     </div>
 </div>
-
 
 <?php include 'footer.php'; ?>
 </body>
 </html>
+
+
 

@@ -1,6 +1,6 @@
 <?php
 session_start();
-include 'db_connect.php';
+include 'db_connect.php'; // Ensure $pdo is initialized in db_connect.php
 
 // Ensure only admins can update records
 if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
@@ -10,19 +10,19 @@ if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
 
 // Check if form is submitted
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
-    $student_id = mysqli_real_escape_string($conn, $_POST['student_id']);
-    $roll_number = mysqli_real_escape_string($conn, $_POST['roll_number']);
-    $name = mysqli_real_escape_string($conn, $_POST['name']);
-    $email = mysqli_real_escape_string($conn, $_POST['email']);
-    $phone = mysqli_real_escape_string($conn, $_POST['phone']);
-    $dob = mysqli_real_escape_string($conn, $_POST['dob']);
-    $gender = mysqli_real_escape_string($conn, $_POST['gender']);
-    $address = mysqli_real_escape_string($conn, $_POST['address']);
-    $course = mysqli_real_escape_string($conn, $_POST['course']);
-    $year = mysqli_real_escape_string($conn, $_POST['year']);
-    $guardian_name = mysqli_real_escape_string($conn, $_POST['guardian_name']);
-    $guardian_contact = mysqli_real_escape_string($conn, $_POST['guardian_contact']);
-    $admission_date = mysqli_real_escape_string($conn, $_POST['admission_date']);
+    $student_id = $_POST['student_id'];
+    $roll_number = $_POST['roll_number'];
+    $name = $_POST['name'];
+    $email = $_POST['email'];
+    $phone = $_POST['phone'];
+    $dob = $_POST['dob'];
+    $gender = $_POST['gender'];
+    $address = $_POST['address'];
+    $course = $_POST['course'];
+    $year = $_POST['year'];
+    $guardian_name = $_POST['guardian_name'];
+    $guardian_contact = $_POST['guardian_contact'];
+    $admission_date = $_POST['admission_date'];
 
     // Ensure student ID is valid
     if (empty($student_id)) {
@@ -31,26 +31,43 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         exit();
     }
 
-    // Update query
+    // Update query using PDO
     $query = "UPDATE students SET 
-                roll_number='$roll_number', 
-                name='$name', 
-                email='$email', 
-                phone='$phone', 
-                dob='$dob',
-                gender='$gender', 
-                address='$address', 
-                course='$course', 
-                year='$year',
-                guardian_name='$guardian_name', 
-                guardian_contact='$guardian_contact', 
-                admission_date='$admission_date'
-              WHERE id='$student_id'";
+                roll_number = :roll_number, 
+                name = :name, 
+                email = :email, 
+                phone = :phone, 
+                dob = :dob,
+                gender = :gender, 
+                address = :address, 
+                course = :course, 
+                year = :year,
+                guardian_name = :guardian_name, 
+                guardian_contact = :guardian_contact, 
+                admission_date = :admission_date
+              WHERE id = :student_id";
 
-    if (mysqli_query($conn, $query)) {
+    $stmt = $pdo->prepare($query);
+    $params = [
+        ':roll_number' => $roll_number,
+        ':name' => $name,
+        ':email' => $email,
+        ':phone' => $phone,
+        ':dob' => $dob,
+        ':gender' => $gender,
+        ':address' => $address,
+        ':course' => $course,
+        ':year' => $year,
+        ':guardian_name' => $guardian_name,
+        ':guardian_contact' => $guardian_contact,
+        ':admission_date' => $admission_date,
+        ':student_id' => $student_id
+    ];
+
+    if ($stmt->execute($params)) {
         $_SESSION['message'] = "Student record updated successfully!";
     } else {
-        $_SESSION['error'] = "Error updating student record: " . mysqli_error($conn);
+        $_SESSION['error'] = "Error updating student record.";
     }
 
     // Redirect back to dashboard

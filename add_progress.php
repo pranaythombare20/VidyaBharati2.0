@@ -1,16 +1,15 @@
 <?php
-include 'db_connect.php'; // Database connection
+include 'db_connect.php'; // Ensure $pdo is initialized in db_connect.php
 
 $message = "";
 
 // Fetch Student IDs from the database
 $students = [];
-$result = $conn->query("SELECT id, name FROM students"); // Adjust table name if needed
-if ($result->num_rows > 0) {
-    while ($row = $result->fetch_assoc()) {
-        $students[] = $row;
-    }
-}
+$pdo = new PDO("mysql:host=localhost;dbname=student_tracking_db", "root", "");  
+// Adjust the connection parameters as needed
+$pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+$stmt = $pdo->query("SELECT id, name FROM students"); // Adjust table name if needed
+$students = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 // Check if the form is submitted
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
@@ -24,21 +23,27 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
     // Check for required fields
     if ($student_id && $subject && $marks_obtained !== null && $total_marks !== null && $exam_type && $semester) {
-        $stmt = $conn->prepare("INSERT INTO student_marks (student_id, subject, marks_obtained, total_marks, exam_type, semester) VALUES (?, ?, ?, ?, ?, ?)");
-        $stmt->bind_param("sssiss", $student_id, $subject, $marks_obtained, $total_marks, $exam_type, $semester);
+        $sql = "INSERT INTO student_marks (student_id, subject, marks_obtained, total_marks, exam_type, semester) 
+                VALUES (:student_id, :subject, :marks_obtained, :total_marks, :exam_type, :semester)";
+        $stmt = $pdo->prepare($sql);
+        $params = [
+            ':student_id' => $student_id,
+            ':subject' => $subject,
+            ':marks_obtained' => $marks_obtained,
+            ':total_marks' => $total_marks,
+            ':exam_type' => $exam_type,
+            ':semester' => $semester
+        ];
 
-        if ($stmt->execute()) {
+        if ($stmt->execute($params)) {
             $message = "<div class='alert alert-success'>Progress added successfully!</div>";
         } else {
-            $message = "<div class='alert alert-danger'>Error: " . $stmt->error . "</div>";
+            $message = "<div class='alert alert-danger'>Error: Unable to add progress.</div>";
         }
-        $stmt->close();
     } else {
         $message = "<div class='alert alert-warning'>All fields are required!</div>";
     }
 }
-
-$conn->close();
 ?>
 
 <!DOCTYPE html>
@@ -58,7 +63,7 @@ $conn->close();
                 <select name="student_id" class="form-control" required>
                     <option value="">Select Student</option>
                     <?php foreach ($students as $student): ?>
-                        <option value="<?= $student['id'] ?>"><?= $student['id'] . " - " . $student['name'] ?></option>
+                        <option value="<?= htmlspecialchars($student['id']) ?>"><?= htmlspecialchars($student['id'] . " - " . $student['name']) ?></option>
                     <?php endforeach; ?>
                 </select>
             </div>

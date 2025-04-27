@@ -2,44 +2,38 @@
 include 'db_connect.php'; // Include database connection
 
 $message = "";
-
+$pdo = new PDO("mysql:host=localhost;dbname=student_tracking_db", "root", "");  // Update with your database credentials
+$pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 // Fetch progress records with student roll numbers
-$progress_records = $conn->query("
+$stmt = $pdo->query("
     SELECT sm.id, sm.subject, s.roll_number, s.name 
     FROM student_marks sm
     JOIN students s ON sm.student_id = s.id
 ");
+$progress_records = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     if (isset($_POST['progress_id']) && !empty($_POST['progress_id'])) {
         $progress_id = $_POST['progress_id'];
 
         // Check if the record exists before deleting
-        $stmt = $conn->prepare("SELECT id FROM student_marks WHERE id = ?");
-        $stmt->bind_param("i", $progress_id);
-        $stmt->execute();
-        $stmt->store_result();
+        $stmt = $pdo->prepare("SELECT id FROM student_marks WHERE id = :id");
+        $stmt->execute([':id' => $progress_id]);
 
-        if ($stmt->num_rows > 0) {
+        if ($stmt->rowCount() > 0) {
             // Record exists, proceed with deletion
-            $stmt = $conn->prepare("DELETE FROM student_marks WHERE id = ?");
-            $stmt->bind_param("i", $progress_id);
-
-            if ($stmt->execute()) {
+            $stmt = $pdo->prepare("DELETE FROM student_marks WHERE id = :id");
+            if ($stmt->execute([':id' => $progress_id])) {
                 $message = "<div class='alert alert-success'>Progress record deleted successfully!</div>";
             } else {
-                $message = "<div class='alert alert-danger'>Error deleting record: " . $stmt->error . "</div>";
+                $message = "<div class='alert alert-danger'>Error deleting record.</div>";
             }
         } else {
             $message = "<div class='alert alert-warning'>No such record found!</div>";
         }
-
-        $stmt->close();
     } else {
         $message = "<div class='alert alert-danger'>Invalid request.</div>";
     }
-
-    $conn->close();
 }
 ?>
 
@@ -69,11 +63,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 <label class="form-label">Select Progress Record</label>
                 <select name="progress_id" id="progress-select" class="form-control" required>
                     <option value="">-- Select Progress Record --</option>
-                    <?php while ($row = $progress_records->fetch_assoc()): ?>
-                        <option value="<?= $row['id'] ?>" data-search="<?= strtolower($row['id'] . ' ' . $row['roll_number'] . ' ' . $row['name'] . ' ' . $row['subject']) ?>">
-                            <?= "Progress ID: " . $row['id'] . " | Roll No: " . $row['roll_number'] . " | Name: " . $row['name'] . " | Subject: " . $row['subject'] ?>
+                    <?php foreach ($progress_records as $row): ?>
+                        <option value="<?= htmlspecialchars($row['id']) ?>" data-search="<?= strtolower($row['id'] . ' ' . $row['roll_number'] . ' ' . $row['name'] . ' ' . $row['subject']) ?>">
+                            <?= "Progress ID: " . htmlspecialchars($row['id']) . " | Roll No: " . htmlspecialchars($row['roll_number']) . " | Name: " . htmlspecialchars($row['name']) . " | Subject: " . htmlspecialchars($row['subject']) ?>
                         </option>
-                    <?php endwhile; ?>
+                    <?php endforeach; ?>
                 </select>
             </div>
 

@@ -1,21 +1,17 @@
 <?php
 session_start();
-include 'db_connect.php';
-$stmt;
-$conn;
+include 'db_connect.php'; // Your PDO connection should be here
+
 // Handle Login
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action']) && $_POST['action'] == "login") {
     $email = $_POST['email'];
     $password = $_POST['password'];
 
     $stmt = $conn->prepare("SELECT * FROM users WHERE email = ?");
-    $stmt->bind_param("s", $email);
-    $stmt->execute();
-    $result = $stmt->get_result();
+    $stmt->execute([$email]);
+    $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
-    if ($result->num_rows > 0) {
-        $user = $result->fetch_assoc();
-
+    if ($user) {
         if (password_verify($password, $user['password'])) {
             $_SESSION['user_id'] = $user['user_id'];
             $_SESSION['role'] = $user['role'];
@@ -35,8 +31,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action']) && $_POST['a
     } else {
         $login_error = "User not found.";
     }
-
-    $stmt->close();
 }
 
 // Handle Registration
@@ -49,29 +43,22 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action']) && $_POST['a
 
     // Check if user_id already exists
     $check_user = $conn->prepare("SELECT * FROM users WHERE user_id = ?");
-    $check_user->bind_param("s", $user_id);
-    $check_user->execute();
-    $result = $check_user->get_result();
+    $check_user->execute([$user_id]);
+    $existingUser = $check_user->fetch(PDO::FETCH_ASSOC);
 
-    if ($result->num_rows > 0) {
+    if ($existingUser) {
         $register_error = "User ID already exists. Please use a different ID.";
     } else {
         $stmt = $conn->prepare("INSERT INTO users (user_id, name, email, password, role) VALUES (?, ?, ?, ?, ?)");
-        $stmt->bind_param("sssss", $user_id, $name, $email, $password, $role);
-
-        if ($stmt->execute()) {
+        if ($stmt->execute([$user_id, $name, $email, $password, $role])) {
             $register_success = "Registration successful. You can now <a href='login.php'>Login</a>.";
         } else {
-            $register_error = "Error: " . $stmt->error;
+            $register_error = "Error during registration.";
         }
     }
-
-    $check_user->close();
-   
 }
-
-
 ?>
+
 
 <!DOCTYPE html>
 <html lang="en">

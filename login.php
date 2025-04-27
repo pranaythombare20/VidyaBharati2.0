@@ -8,7 +8,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
   $password = $_POST['password'];
 
   $stmt = $conn->prepare("SELECT * FROM users WHERE email = ?");
-  $stmt->bind_param("s", $email);
+  $stmt->bind_param("v", $email);
   $stmt->execute();
   $result = $stmt->get_result();
   

@@ -1,13 +1,10 @@
+
 <?php include 'header.php'; ?>
 <?php
-include 'db_connect.php';
+include 'db_connect.php'; // Ensure $pdo is initialized in db_connect.php
 
-
-$role=$_SESSION['role']; // Get the role from session
-
+$role = $_SESSION['role']; // Get the role from session
 ?>
-
-
 
 <!DOCTYPE html>
 <html lang="en">
@@ -151,120 +148,61 @@ $role=$_SESSION['role']; // Get the role from session
                     </div>
                     <div class="card-body">
                         <div class="table-container">
-                        <table class="table table-bordered">
-    <thead>
-        <tr>
-            <th>Progress ID</th>
-            <th>Roll Number</th>
-            <th>Name</th>
-            <th>Subject</th>
-            <th>Marks Obtained</th>
-            <th>Total Marks</th>
-            <th>Exam Type</th>
-            <th>Semester</th>
-        </tr>
-    </thead>
-    <tbody>
-        <?php 
-        
-        include 'db_connect.php';
-        $role=null;
-        $sql = "
-            SELECT sm.id, sm.subject, sm.marks_obtained, sm.total_marks, sm.exam_type, sm.semester, 
-                   s.roll_number, s.name 
-            FROM student_marks sm
-            JOIN students s ON sm.student_id = s.id
-        ";
+                            <table class="table table-bordered">
+                                <thead>
+                                    <tr>
+                                        <th>Progress ID</th>
+                                        <th>Roll Number</th>
+                                        <th>Name</th>
+                                        <th>Subject</th>
+                                        <th>Marks Obtained</th>
+                                        <th>Total Marks</th>
+                                        <th>Exam Type</th>
+                                        <th>Semester</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php
+                                    // Fetch progress records using PDO
+                                    $sql = "
+                                        SELECT sm.id, sm.subject, sm.marks_obtained, sm.total_marks, sm.exam_type, sm.semester, 
+                                               s.roll_number, s.name 
+                                        FROM student_marks sm
+                                        JOIN students s ON sm.student_id = s.id
+                                    ";
 
-        $progress_records = $conn->query($sql);
+                                    $stmt = $pdo->query($sql);
+                                    $progress_records = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-        if ($progress_records->num_rows > 0) {
-            while ($row = $progress_records->fetch_assoc()) {
-                echo "<tr>
-                    <td>{$row['id']}</td>
-                    <td>{$row['roll_number']}</td>
-                    <td>{$row['name']}</td>
-                    <td>{$row['subject']}</td>
-                    <td>{$row['marks_obtained']}</td>
-                    <td>{$row['total_marks']}</td>
-                    <td>" . (!empty($row['exam_type']) ? $row['exam_type'] : 'N/A') . "</td>
-                    <td>{$row['semester']}</td>
-                </tr>";
-            }
-        } else {
-            echo "<tr><td colspan='8' class='text-center text-danger'>No records found!</td></tr>";
-        }
-
-        ?>
-    </tbody>
-</table>
-
+                                    if (!empty($progress_records)) {
+                                        foreach ($progress_records as $row) {
+                                            echo "<tr>
+                                                <td>" . htmlspecialchars($row['id']) . "</td>
+                                                <td>" . htmlspecialchars($row['roll_number']) . "</td>
+                                                <td>" . htmlspecialchars($row['name']) . "</td>
+                                                <td>" . htmlspecialchars($row['subject']) . "</td>
+                                                <td>" . htmlspecialchars($row['marks_obtained']) . "</td>
+                                                <td>" . htmlspecialchars($row['total_marks']) . "</td>
+                                                <td>" . (!empty($row['exam_type']) ? htmlspecialchars($row['exam_type']) : 'N/A') . "</td>
+                                                <td>" . htmlspecialchars($row['semester']) . "</td>
+                                            </tr>";
+                                        }
+                                    } else {
+                                        echo "<tr><td colspan='8' class='text-center text-danger'>No records found!</td></tr>";
+                                    }
+                                    ?>
+                                </tbody>
+                            </table>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
-
     </div>
-    <?php if ($role == 'admin'): ?>
-        <?php 
-        include 'db_connect.php';
 
-        $sql = "
-            SELECT sm.id, sm.subject, sm.marks_obtained, sm.total_marks, sm.exam_type, sm.semester, 
-                   s.roll_number, s.name 
-            FROM student_marks sm
-            JOIN students s ON sm.student_id = s.id
-        ";
-
-        $progress_records = $conn->query($sql);
-
-        if ($progress_records->num_rows > 0) {
-            while ($row = $progress_records->fetch_assoc()) {
-                echo "<tr>
-                    <td>{$row['id']}</td>
-                    <td>{$row['roll_number']}</td>
-                    <td>{$row['name']}</td>
-                    <td>{$row['subject']}</td>
-                    <td>{$row['marks_obtained']}</td>
-                    <td>{$row['total_marks']}</td>
-                    <td>" . (!empty($row['exam_type']) ? $row['exam_type'] : 'N/A') . "</td>
-                    <td>{$row['semester']}</td>
-                </tr>";
-            }
-        } else {
-            echo "<tr><td colspan='8' class='text-center text-danger'>No records found!</td></tr>";
-        }
-
-        ?>
-    </tbody>
-</table>
-
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-      
-   
-  
-    </div>
-    
-    <?php if ($role == 'admin'): ?>
-            <a href="admin_dashboard.php" class="btn-back">⬅ Back to Dashboard</a>
-        <?php endif; ?>
-        <?php if ($role == 'teacher'): ?>
-        <a href="teacher_dashboard.php" class="btn-back">⬅ Back to Dashboard</a>
-        <?php endif; ?>
-    
-        
-        <?php endif; ?>
+ 
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    
-        
-
-<?php include 'footer.php'; ?>
-
+    <?php include 'footer.php'; ?>
 </body>
 </html>

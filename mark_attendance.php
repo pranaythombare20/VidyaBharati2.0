@@ -1,7 +1,8 @@
 <?php include 'header.php'; ?>
 <?php
-include 'db_connect.php';
-
+include 'db_connect.php'; // Ensure $pdo is initialized in db_connect.php
+$pdo = new PDO("mysql:host=localhost;dbname=student_tracking_db", "root", "");  // Update with your database credentials
+$pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $date = $_POST['date'];
 
@@ -20,33 +21,31 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             }
 
             // Check if attendance already exists for the student on the given date
-            $stmt_check = $conn->prepare("SELECT * FROM attendance WHERE student_id = ? AND date = ?");
-            $stmt_check->bind_param("ss", $student_id, $date); // Use "ss" since both are strings
-            $stmt_check->execute();
-            $result_check = $stmt_check->get_result();
+            $stmt_check = $pdo->prepare("SELECT * FROM attendance WHERE student_id = :student_id AND date = :date");
+            $stmt_check->execute([':student_id' => $student_id, ':date' => $date]);
 
-            if ($result_check->num_rows == 0) {
+            if ($stmt_check->rowCount() == 0) {
                 // Insert attendance data
-                $stmt_insert = $conn->prepare("
+                $stmt_insert = $pdo->prepare("
                     INSERT INTO attendance 
                     (student_id, date, period_1, period_2, period_3, period_4, period_5, period_6, period_7, period_8) 
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-                $stmt_insert->bind_param(
-                    "ssssssssss", // All parameters are strings
-                    $student_id,
-                    $date,
-                    $periods[0],
-                    $periods[1],
-                    $periods[2],
-                    $periods[3],
-                    $periods[4],
-                    $periods[5],
-                    $periods[6],
-                    $periods[7]
-                );
+                    VALUES (:student_id, :date, :period_1, :period_2, :period_3, :period_4, :period_5, :period_6, :period_7, :period_8)
+                ");
+                $params = [
+                    ':student_id' => $student_id,
+                    ':date' => $date,
+                    ':period_1' => $periods[0],
+                    ':period_2' => $periods[1],
+                    ':period_3' => $periods[2],
+                    ':period_4' => $periods[3],
+                    ':period_5' => $periods[4],
+                    ':period_6' => $periods[5],
+                    ':period_7' => $periods[6],
+                    ':period_8' => $periods[7]
+                ];
 
-                if (!$stmt_insert->execute()) {
-                    echo "Error for Student ID $student_id: " . $stmt_insert->error . "<br>";
+                if (!$stmt_insert->execute($params)) {
+                    echo "Error for Student ID $student_id: " . implode(", ", $stmt_insert->errorInfo()) . "<br>";
                 }
             } else {
                 echo "Attendance already marked for Student ID $student_id on $date.<br>";
@@ -186,13 +185,13 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 <th>Period 8</th>
             </tr>
             <?php
-            $result = mysqli_query($conn, "SELECT * FROM users WHERE role = 'student'");
-            while ($row = mysqli_fetch_assoc($result)) {
+            $stmt_students = $pdo->query("SELECT * FROM users WHERE role = 'student'");
+            while ($row = $stmt_students->fetch(PDO::FETCH_ASSOC)) {
                 echo "<tr>
                     <td>{$row['name']}</td>";
                 for ($i = 1; $i <= 8; $i++) {
                     echo "<td>
-                        <select name='attendance[{$row['user_id']}][$i]'>
+                        <select name='attendance[{$row['name']}][$i]'>
                             <option value='Present'>P</option>
                             <option value='Absent'>A</option>
                             <option value='Late'>L</option>
