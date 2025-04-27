@@ -1,14 +1,16 @@
 <?php
 session_start();
-include 'db_connect.php'; // Your PDO connection should be here
+include 'db_connect.php'; // Ensure $pdo is initialized in db_connect.php
 
 // Handle Login
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action']) && $_POST['action'] == "login") {
     $email = $_POST['email'];
     $password = $_POST['password'];
 
-    $stmt = $conn->prepare("SELECT * FROM users WHERE email = ?");
-    $stmt->execute([$email]);
+    $pdo = new PDO("mysql:host=localhost;dbname=student_tracking_db", "root", "");  // Update with your database credentials    
+    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+    $stmt = $pdo->prepare("SELECT * FROM users WHERE email = :email");
+    $stmt->execute([':email' => $email]);
     $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
     if ($user) {
@@ -42,15 +44,21 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action']) && $_POST['a
     $role = $_POST['role'];
 
     // Check if user_id already exists
-    $check_user = $conn->prepare("SELECT * FROM users WHERE user_id = ?");
-    $check_user->execute([$user_id]);
+    $check_user = $pdo->prepare("SELECT * FROM users WHERE user_id = :user_id");
+    $check_user->execute([':user_id' => $user_id]);
     $existingUser = $check_user->fetch(PDO::FETCH_ASSOC);
 
     if ($existingUser) {
         $register_error = "User ID already exists. Please use a different ID.";
     } else {
-        $stmt = $conn->prepare("INSERT INTO users (user_id, name, email, password, role) VALUES (?, ?, ?, ?, ?)");
-        if ($stmt->execute([$user_id, $name, $email, $password, $role])) {
+        $stmt = $pdo->prepare("INSERT INTO users (user_id, name, email, password, role) VALUES (:user_id, :name, :email, :password, :role)");
+        if ($stmt->execute([
+            ':user_id' => $user_id,
+            ':name' => $name,
+            ':email' => $email,
+            ':password' => $password,
+            ':role' => $role
+        ])) {
             $register_success = "Registration successful. You can now <a href='login.php'>Login</a>.";
         } else {
             $register_error = "Error during registration.";
