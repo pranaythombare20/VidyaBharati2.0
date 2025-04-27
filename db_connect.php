@@ -4,9 +4,11 @@ $username = "root";
 $password = "";
 $database = "student_tracking_db";
 
-$conn = new mysqli($servername, $username, $password, $database);
+// Using the procedural style
+$conn = mysqli_connect($servername, $username, $password, $database);
 
-if ($conn->connect_error) {
-    die("Connection failed: " . $conn->connect_error);
+// Check connection
+if (!$conn) {
+    die("Connection failed: " . mysqli_connect_error());
 }
 ?>
