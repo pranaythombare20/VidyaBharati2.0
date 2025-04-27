@@ -1,0 +1,818 @@
+<?php
+session_start();
+include 'db_connect.php';
+$stmt;
+$conn;
+// Handle Login
+if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action']) && $_POST['action'] == "login") {
+    $email = $_POST['email'];
+    $password = $_POST['password'];
+
+    $stmt = $conn->prepare("SELECT * FROM users WHERE email = ?");
+    $stmt->bind_param("s", $email);
+    $stmt->execute();
+    $result = $stmt->get_result();
+
+    if ($result->num_rows > 0) {
+        $user = $result->fetch_assoc();
+
+        if (password_verify($password, $user['password'])) {
+            $_SESSION['user_id'] = $user['user_id'];
+            $_SESSION['role'] = $user['role'];
+
+            // Redirect based on role
+            if ($user['role'] == 'student') {
+                header("Location: student_dashboard.php");
+            } elseif ($user['role'] == 'teacher') {
+                header("Location: teacher_dashboard.php");
+            } else {
+                header("Location: admin_dashboard.php");
+            }
+            exit();
+        } else {
+            $login_error = "Invalid email or password.";
+        }
+    } else {
+        $login_error = "User not found.";
+    }
+
+    $stmt->close();
+}
+
+// Handle Registration
+if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action']) && $_POST['action'] == "register") {
+    $user_id = $_POST['user_id'];
+    $name = $_POST['name'];
+    $email = $_POST['email'];
+    $password = password_hash($_POST['password'], PASSWORD_BCRYPT);
+    $role = $_POST['role'];
+
+    // Check if user_id already exists
+    $check_user = $conn->prepare("SELECT * FROM users WHERE user_id = ?");
+    $check_user->bind_param("s", $user_id);
+    $check_user->execute();
+    $result = $check_user->get_result();
+
+    if ($result->num_rows > 0) {
+        $register_error = "User ID already exists. Please use a different ID.";
+    } else {
+        $stmt = $conn->prepare("INSERT INTO users (user_id, name, email, password, role) VALUES (?, ?, ?, ?, ?)");
+        $stmt->bind_param("sssss", $user_id, $name, $email, $password, $role);
+
+        if ($stmt->execute()) {
+            $register_success = "Registration successful. You can now <a href='login.php'>Login</a>.";
+        } else {
+            $register_error = "Error: " . $stmt->error;
+        }
+    }
+
+    $check_user->close();
+   
+}
+
+$conn->close();
+?>
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Student Management System</title>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600&family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    /* General Reset */
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      scroll-behavior: smooth;
+    }
+
+    body {
+      background: linear-gradient(135deg, #1e3c72, #2a5298);
+      color: #eee;
+      font-family: 'Poppins', sans-serif;
+      line-height: 1.6;
+    }
+
+    header {
+     
+      background: linear-gradient(135deg, #1a7ed0, #4ebe80);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 1.2rem 2rem;
+      position: fixed;
+      width: 100%;
+      z-index: 999;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+      height: 80px;
+    }
+
+    .logo {
+      font-family: 'Playfair Display', serif;
+      font-size: 2rem;
+      color: #ffc107;
+      letter-spacing: 1px;
+    }
+
+    nav ul {
+      list-style: none;
+      display: flex;
+      gap: 1.5rem;
+    }
+
+    nav a {
+      color: #fff;
+      font-weight: bold;
+      text-transform: uppercase;
+      position: relative;
+      transition: color 0.3s ease;
+    }
+
+    nav a:hover {
+      color: #ffc107;
+    }
+
+    nav a::after {
+      content: '';
+      position: absolute;
+      left: 0;
+      bottom: -4px;
+      width: 0%;
+      height: 2px;
+      background: #ffc107;
+      transition: width 0.3s ease;
+    }
+
+    nav a:hover::after {
+      width: 100%;
+    }
+
+    .hero {
+      height:600px;
+      background: linear-gradient(135deg, #1e3c72, #2a5298);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      text-align: center;
+      color: #fff;
+      padding: 2rem;
+    }
+
+    .hero h1 {
+      font-family: 'Playfair Display', serif;
+      font-size: 3.5rem;
+      color: #ffc107;
+      margin-bottom: 1rem;
+    }
+
+    .hero p {
+      font-size: 1.2rem;
+      line-height: 1.5;
+      color: #ddd;
+      max-width: 800px;
+    }
+
+    .hero a.btn {
+      margin-top: 2rem;
+      display: inline-block;
+      padding: 0.9rem 2rem;
+      background-color: #ffc107;
+      color: #000;
+      font-weight: bold;
+      text-transform: uppercase;
+      border-radius: 30px;
+      transition: 0.3s;
+    }
+
+    .hero a.btn:hover {
+      background: #fff;
+      color: #000;
+      transform: scale(1.05);
+    }
+
+    #dashboard {
+      padding: 60px 5%;
+      background: #f4f4f4;
+      color: #333;
+    }
+
+    #dashboard h2 {
+      text-align: center;
+      font-family: 'Playfair Display', serif;
+      font-size: 2.5rem;
+      color: #1e3c72;
+      margin-bottom: 2rem;
+    }
+
+    .dashboard {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 30px;
+    }
+  
+    .card {
+      background: linear-gradient(135deg, #43cea2, #185a9d);
+      color: #fff;
+      width:400px;
+      padding:10px;
+      height:250px;
+      border-radius: 12px;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+      transition: transform 0.3s ease, box-shadow 0.3s ease;
+    }
+
+    .card:hover {
+      transform: translateY(-10px);
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+    }
+
+    .card h2 {
+     
+      font-size: 20px;
+      margin-bottom: 10px;
+    }
+
+    .card p {
+      font-size: 1rem;
+      line-height: 1.5;
+    }
+
+    #about {
+      padding: 5rem 2rem;
+      background: #1e3c72;
+      color: #fff;
+      text-align: center;
+    }
+
+
+    #login h2 {
+      font-family: 'Playfair Display', serif;
+      font-size: 2.5rem;
+      color: #ffc107;
+      margin-bottom: 1.5rem;
+    }
+
+    #about h2 {
+      font-family: 'Playfair Display', serif;
+      font-size: 2.5rem;
+      color: #ffc107;
+      margin-bottom: 1.5rem;
+    }
+
+    #about p {
+      font-size: 1.1rem;
+      line-height: 1.8;
+      color: #ccc;
+      max-width: 800px;
+      margin: auto;
+    }
+
+    #contact {
+      padding: 5rem 2rem;
+      background: #f4f4f4;
+      color: #333;
+      text-align: center;
+    }
+
+    #contact h2 {
+      font-family: 'Playfair Display', serif;
+      font-size: 2.5rem;
+      color: #1e3c72;
+      margin-bottom: 1.5rem;
+    }
+
+    #contact form {
+      max-width: 600px;
+      margin: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    #contact input,
+    #contact textarea,
+    #contact button {
+      padding: 1rem;
+      border-radius: 10px;
+      border: none;
+      font-size: 1rem;
+    }
+
+    #contact input,
+    #contact textarea {
+      background: #fff;
+      color: #333;
+    }
+
+    #contact button {
+      background: #ffc107;
+      color: #111;
+      font-weight: bold;
+      cursor: pointer;
+      transition: background 0.3s ease;
+    }
+
+    #contact button:hover {
+      background: #ffb300;
+    }
+
+    footer {
+      background: linear-gradient(135deg, #43cea2, #185a9d);
+      color: #0b0b0b;
+      text-align: center;
+      height:80px;
+    }
+
+    footer p {
+      margin-bottom: 0.5rem;
+    }
+
+    footer strong {
+      color: #ffc107;
+    }
+
+    .go-up {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      background-color: #ffc107;
+      color: #000;
+      border: none;
+      border-radius: 50%;
+      width: 50px;
+      height: 50px;
+      font-size: 24px;
+      display: none;
+      justify-content: center;
+      align-items: center;
+      cursor: pointer;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
+      transition: all 0.3s ease;
+    }
+
+    .go-up:hover {
+      background-color: #ffb300;
+      transform: scale(1.1);
+    }
+
+    .go-up.visible {
+      display: flex;
+    }
+
+    @media (max-width: 768px) {
+      header {
+        flex-direction: column;
+        padding: 1rem;
+      }
+
+      nav ul {
+        flex-direction: column;
+        gap: 1rem;
+      }
+
+      .hero h1 {
+        font-size: 2.5rem;
+      }
+
+      .dashboard {
+        grid-template-columns: 1fr;
+      }
+    }
+    a{
+    text-decoration: none;
+   }
+  .stats {
+    display: flex;
+    justify-content: center;
+    gap: 2rem;
+    margin-top: 2rem;
+    flex-wrap: wrap;
+  }
+
+  .stat {
+    background: rgba(255, 255, 255, 0.1);
+    padding: 1.5rem;
+    border-radius: 10px;
+    text-align: center;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+  }
+
+  .stat:hover {
+    transform: translateY(-10px);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+  }
+
+  .stat h3 {
+    font-size: 2.5rem;
+    color: #ffc107;
+    margin-bottom: 0.5rem;
+  }
+
+  .stat p {
+    font-size: 1rem;
+    color: #ddd;
+  }
+ 
+  #dashboard {
+    padding: 60px 5%;
+    background: #f4f4f4;
+    color: #333;
+  }
+
+  #dashboard h2 {
+    text-align: center;
+    font-family: 'Playfair Display', serif;
+    font-size: 2.5rem;
+    color: #1e3c72;
+    margin-bottom: 2rem;
+  }
+
+  .dashboard {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+    gap: 30px;
+  }
+
+  
+
+  </style>
+</head>
+<body>
+
+  <header>
+    <b><div class="logo">VidyaBharati</div></b>
+    <nav>
+      <ul>
+        <li><a href="#hero">Home</a></li>
+        <li><a href="#dashboard">Features</a></li>
+        <li><a href="#about">About</a></li>
+        <li><a href="#contact">Contact</a></li>
+        <li><a href="#login">login</a></li>
+      </ul>
+    </nav>
+  </header>
+
+  <section class="hero" id="hero">
+    <div class="hero-content">
+      <h1>Student Record Management System</h1>
+      <center><p><b>Track records, monitor attendance, and manage progress — all in one place.</b></p></center>
+      <a href="#login" class="btn">Explore Now</a>
+    </div>
+  </section>
+
+  <section id="dashboard">
+    <h2>Website Features</h2>
+    <div class="dashboard">
+      <div class="card">
+        <div class="icon">>
+          <img src="https://img.icons8.com/ios-filled/50/ffffff/student-male.png" alt="Student Info Icon">
+        </div>
+        <h2 style="font-size:30px; color:black;">Student Info Management</h2>
+        <p>Manage student records efficiently with our powerful database.</p>
+      </div>
+      <div class="card">
+        <div class="icon">
+          <img src="https://img.icons8.com/ios-filled/50/ffffff/money.png" alt="Fee Tracking Icon">
+        </div>
+        <h2 style="font-size:30px;color:black;">Progress Management</h2>
+        <p>Track and manage student progress.</p>
+      </div>
+      <div class="card">
+        <div class="icon">
+          <img src="https://img.icons8.com/ios-filled/50/ffffff/user.png" alt="Admission Records Icon">
+        </div>
+        <h2 style="font-size:30px;color:black;">Attendance Management</h2>
+        <p>Track and manage student Attendance</p>
+      </div>
+      <div class="card">
+        <div class="icon">
+          <img src="https://img.icons8.com/ios-filled/50/ffffff/search.png" alt="AI Search Icon">
+        </div>
+        <h2 style="font-size:30px;color:black;">Dynamic Search</h2>
+        <p>Find records instantly with search and filtering.</p>
+      </div>
+      <div class="card">
+        <div class="icon">
+          <img src="https://img.icons8.com/ios-filled/50/ffffff/learning.png" alt="Gamified Learning Icon">
+        </div>
+        <h2 style="font-size:30px;color:black;">Gamified Learning & Progress Tracking</h2>
+        <p>Students can track their academic progress interactively.</p>
+      </div>
+      <div class="card">
+        <div class="icon">
+          <img src="https://img.icons8.com/ios-filled/50/ffffff/time.png" alt="Real-time Updates Icon">
+        </div>
+        <h2 style="font-size:30px;color:black;">Real-time Data And Updates</h2>
+        <p>Experience seamless real-time updates without page reloads.</p>
+      </div>
+    </div>
+  </section>
+  <section id="about">
+    <h2>About Our System</h2>
+    <p>
+      Our Student Management System enables seamless record keeping, attendance tracking, academic progress monitoring, and event management. Designed for Students, Teachers, and Admins — all in one powerful, user-friendly platform.
+    </p>
+    <div class="stats">
+      <div class="stat">
+        <h3><span class="counter" data-target="5000">0</span>+</h3>
+        <p>Students Enrolled</p>
+      </div>
+      <div class="stat">
+        <h3><span class="counter" data-target="300">0</span>+</h3>
+        <p>Teachers Registered</p>
+      </div>
+      <div class="stat">
+        <h3><span class="counter" data-target="50">0</span>+</h3>
+        <p>Courses Offered</p>
+      </div>
+      <div class="stat">
+        <h3><span class="counter" data-target="100">0</span>+</h3>
+        <p>Events Organized</p>
+      </div>
+    </div>
+  </section>
+
+
+  <section id="contact">
+    <h2>Get in Touch</h2>
+    <form action="contact.php" method="POST">
+      <input type="text" name="name" placeholder="Your Name" required>
+      <input type="email" name="email" placeholder="Your Email" required>
+      <textarea name="message" rows="5" placeholder="Your Message" required></textarea>
+      <button type="submit">Send Message</button>
+    </form>
+  </section>
+
+  <section id="login">
+    
+  <style>
+  
+    .container {
+  
+      margin:auto;
+      width: 900px;
+      height: 550px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 15px;
+      overflow: hidden;
+      position: relative;
+      box-shadow: 0 15px 25px rgba(47, 46, 46, 0.5);
+      backdrop-filter: blur(10px);
+    }
+
+    .form-container {
+      position: absolute;
+      top: 0;
+      height: 100%;
+      width: 50%;
+      padding: 50px;
+      transition: all 0.6s ease-in-out;
+    }
+
+    .login-container {
+      left: 0;
+      z-index: 2;
+    }
+
+    .register-container {
+      left: 0;
+      opacity: 0;
+      z-index: 1;
+    }
+
+    .container.active .register-container {
+      transform: translateX(100%);
+      opacity: 1;
+      z-index: 5;
+      animation: show 0.6s;
+    }
+
+    .container.active .login-container {
+      transform: translateX(100%);
+      opacity: 0;
+      z-index: 1;
+    }
+
+    @keyframes show {
+      0% {
+        opacity: 0;
+        transform: scale(0.95);
+      }
+      100% {
+        opacity: 1;
+        transform: scale(1);
+      }
+    }
+
+    form {
+      display: flex;
+      flex-direction: column;
+    }
+
+    h2 {
+      text-align: center;
+      margin-bottom: 20px;
+      color: #fff;
+    }
+
+    input,
+    select {
+      padding: 12px;
+      margin: 8px 0;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.1);
+      color: #fff;
+      font-size: 14px;
+    }
+
+    input::placeholder {
+      color: #ccc;
+    }
+
+    button {
+      margin-top: 20px;
+      padding: 12px;
+      border: none;
+      background: linear-gradient(135deg, #43cea2, #185a9d);
+      color: white;
+      border-radius: 8px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: 0.3s;
+    }
+
+    button:hover {
+      background: linear-gradient(135deg, #185a9d, #43cea2);
+    }
+
+    .toggle-panel {
+      position: absolute;
+      right: 0;
+      width: 50%;
+      height: 100%;
+      background: linear-gradient(to right, #43cea2, #185a9d);
+      color: white;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      transition: transform 0.6s ease-in-out;
+    }
+
+    .toggle-panel h1 {
+      font-size: 28px;
+      margin-bottom: 20px;
+    }
+
+    .toggle-panel p {
+      font-size: 16px;
+      margin-bottom: 30px;
+    }
+
+    .toggle-panel button {
+      background: white;
+      color: #185a9d;
+      border: 1px solid white;
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: 0.3s;
+    }
+
+    .toggle-panel button:hover {
+      background: #f0f0f0;
+    }
+
+    .container.active .toggle-panel {
+      transform: translateX(-100%);
+    }
+
+    .message {
+      margin: 10px 0;
+      text-align: center;
+      font-weight: bold;
+    }
+
+    .error {
+      color: #ff4b2b;
+    }
+
+    .success {
+      color: #43cea2;
+    }
+      
+  </style>
+
+
+<br>
+<h2>Explore Here</h2>
+  <div class="container" id="container">
+    <!-- Login Form -->
+    <div class="form-container login-container" style="background:linear-gradient(135deg,rgb(24, 90, 157), #43cea2);">
+      <form method="POST">
+        <h2>Login</h2>
+        <?php if (isset($login_error)) echo "<div class='message error'>$login_error</div>"; ?>
+        <input type="hidden" name="action" value="login">
+        <input type="email" name="email" placeholder="Email" required />
+        <input type="password" name="password" placeholder="Password" required />
+        <button type="submit">Login</button>
+      </form>
+    </div>
+
+    <!-- Registration Form -->
+    <div class="form-container register-container" style="background:linear-gradient(135deg,rgb(24, 90, 157), #43cea2);">
+      <form method="POST">
+        <h2>Register</h2>
+        <?php
+        if (isset($register_success)) echo "<div class='message success'>$register_success</div>";
+        if (isset($register_error)) echo "<div class='message error'>$register_error</div>";
+        ?>
+        <input type="hidden" name="action" value="register">
+        <input type="text" name="user_id" placeholder="Username" required />
+        <input type="text" name="name" placeholder="Full Name" required />
+        <input type="email" name="email" placeholder="Email" required />
+        <input type="password" name="password" placeholder="Password" required />
+        <select name="role" required>
+          <option value="" disabled selected>Select Role</option>
+          <option value="student">Student</option>
+          <option value="teacher">Teacher</option>
+          <option value="admin">Admin</option>
+        </select>
+        <button type="submit">Register</button>
+      </form>
+    </div>
+
+    <!-- Toggle Panel -->
+    <div class="toggle-panel" id="togglePanel">
+      <div>
+        <h1>Welcome Back!</h1>
+        <p>If you already have an account, login here.</p>
+        <button id="signIn">Sign In</button>
+        <br>
+        <br>
+        <br>
+        <hr style="border: 2px solid  rgba(255, 255, 255, 0.2); width: 110%; margin: 20px auto;" />  
+        <br>
+        <br>
+      
+        <h1>New Here?</h1>
+        <p>Register now to access your dashboard.</p>
+        <button id="signUp">Sign Up</button>
+      </div>
+      
+    </div>
+    
+  </div>
+  <br><br>
+
+  <script>
+    const container = document.getElementById('container');
+    const signUpBtn = document.getElementById('signUp');
+    const signInBtn = document.getElementById('signIn');
+
+    signUpBtn.addEventListener('click', () => {
+      container.classList.add("active");
+    });
+
+    signInBtn.addEventListener('click', () => {
+      container.classList.remove("active");
+    });
+  </script>
+  
+
+  </section>
+
+  <button class="go-up" onclick="scrollToTop()">↑</button>
+
+  <script>
+    // Show the Go Up button when scrolling
+    window.onscroll = function() {
+      let button = document.querySelector('.go-up');
+      if (document.documentElement.scrollTop > 500) {
+        button.classList.add('visible');
+      } else {
+        button.classList.remove('visible');
+      }
+    };
+
+    function scrollToTop() {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  </script>
+
+  <footer>
+    <br>
+   <b> <p>&copy; 2025 Student Management System</p></b>
+    
+  </footer>
+
+</body>
+</html>
